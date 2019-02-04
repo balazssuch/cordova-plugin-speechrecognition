@@ -2,34 +2,29 @@
 
 package com.pbakondy;
 
+import android.Manifest;
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.media.AudioManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import android.util.Log;
+import android.view.View;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.PluginResult;
-
 import org.json.JSONArray;
 import org.json.JSONException;
-
-import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-
-import android.Manifest;
-import android.os.Build;
-import android.os.Bundle;
-
-import android.speech.RecognitionListener;
-import android.speech.RecognizerIntent;
-import android.speech.SpeechRecognizer;
-
-import android.util.Log;
-import android.view.View;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
 
 public class SpeechRecognition extends CordovaPlugin {
 
@@ -57,6 +52,8 @@ public class SpeechRecognition extends CordovaPlugin {
   private Context context;
   private View view;
   private SpeechRecognizer recognizer;
+  private Boolean muteBeeps;
+  private AudioManager audioManager;
 
   @Override
   public void initialize(CordovaInterface cordova, CordovaWebView webView) {
@@ -64,6 +61,7 @@ public class SpeechRecognition extends CordovaPlugin {
 
     activity = cordova.getActivity();
     context = webView.getContext();
+    audioManager = (AudioManager)webView.getContext().getSystemService(Context.AUDIO_SERVICE);
     view = webView.getView();
 
     view.post(new Runnable() {
@@ -115,6 +113,7 @@ public class SpeechRecognition extends CordovaPlugin {
         mLastPartialResults = new JSONArray();
         Boolean showPartial = args.optBoolean(3, false);
         Boolean showPopup = args.optBoolean(4, true);
+        muteBeeps = args.optBoolean(5, false);
         startListening(lang, matches, prompt,showPartial, showPopup);
 
         return true;
@@ -122,15 +121,31 @@ public class SpeechRecognition extends CordovaPlugin {
 
       if (STOP_LISTENING.equals(action)) {
         final CallbackContext callbackContextStop = this.callbackContext;
+        if (muteBeeps) {
+          audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+          audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0);
+        }
         view.post(new Runnable() {
           @Override
           public void run() {
-            if(recognizer != null) {
+            if (recognizer != null) {
               recognizer.stopListening();
             }
-            callbackContextStop.success();
+            if (!muteBeeps) {
+              callbackContextStop.success();
+            }
           }
         });
+        if (muteBeeps) {
+          try {
+            Thread.sleep(350);
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+            audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0);
+            callbackContextStop.success();
+          } catch (InterruptedException ex) {
+            callbackContextStop.success();
+          }
+        }
         return true;
       }
 
@@ -164,13 +179,17 @@ public class SpeechRecognition extends CordovaPlugin {
   private void startListening(String language, int matches, String prompt, final Boolean showPartial, Boolean showPopup) {
     Log.d(LOG_TAG, "startListening() language: " + language + ", matches: " + matches + ", prompt: " + prompt + ", showPartial: " + showPartial + ", showPopup: " + showPopup);
 
+    if (muteBeeps) {
+      audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+      audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0);
+    }
     final Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+      RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
     intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, matches);
     intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE,
-            activity.getPackageName());
+      activity.getPackageName());
     intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, showPartial);
     intent.putExtra("android.speech.extra.DICTATION_MODE", showPartial);
 
@@ -262,7 +281,6 @@ public class SpeechRecognition extends CordovaPlugin {
     super.onActivityResult(requestCode, resultCode, data);
   }
 
-
   private class SpeechRecognitionListener implements RecognitionListener {
 
     @Override
@@ -295,8 +313,8 @@ public class SpeechRecognition extends CordovaPlugin {
       JSONArray matchesJSON = new JSONArray(matches);
       try {
         if (matches != null
-                && matches.size() > 0
-                        && !mLastPartialResults.equals(matchesJSON)) {
+          && matches.size() > 0
+          && !mLastPartialResults.equals(matchesJSON)) {
           mLastPartialResults = matchesJSON;
           PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, matchesJSON);
           pluginResult.setKeepCallback(true);
@@ -319,10 +337,18 @@ public class SpeechRecognition extends CordovaPlugin {
       Log.d(LOG_TAG, "SpeechRecognitionListener results: " + matches);
       try {
         JSONArray jsonMatches = new JSONArray(matches);
-        callbackContext.success(jsonMatches);
+        if (muteBeeps) {
+          new UnmuteRunnable(callbackContext, audioManager, jsonMatches).run();
+        } else {
+          callbackContext.success(jsonMatches);
+        }
       } catch (Exception e) {
         e.printStackTrace();
-        callbackContext.error(e.getMessage());
+        if (muteBeeps) {
+          new UnmuteRunnable(callbackContext, audioManager, e.getMessage()).run();
+        } else {
+          callbackContext.error(e.getMessage());
+        }
       }
     }
 
@@ -368,4 +394,40 @@ public class SpeechRecognition extends CordovaPlugin {
     }
   }
 
+  private class UnmuteRunnable implements Runnable {
+    private CallbackContext callbackContext;
+    private AudioManager audioManager;
+    private JSONArray matches;
+    private String errorMessage;
+
+    public UnmuteRunnable(CallbackContext callbackContext, AudioManager audioManager, JSONArray matches) {
+      this.matches = matches;
+      this.audioManager = audioManager;
+      this.callbackContext = callbackContext;
+    }
+
+    public UnmuteRunnable(CallbackContext callbackContext, AudioManager audioManager, String errorMessage) {
+      this.errorMessage = errorMessage;
+      this.audioManager = audioManager;
+      this.callbackContext = callbackContext;
+    }
+
+    @Override
+    public void run() {
+      try {
+        Thread.sleep(200);
+        if (matches != null) {
+          callbackContext.success(matches);
+        } else if (errorMessage != null) {
+          callbackContext.error(errorMessage);
+        } else {
+          callbackContext.success();
+        }
+        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+        audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0);
+      } catch (InterruptedException ex) {
+        callbackContext.error("Execution was interrupted");
+      }
+    }
+  }
 }
