@@ -422,7 +422,7 @@ public class SpeechRecognition extends CordovaPlugin {
     @Override
     public void run() {
       try {
-        Thread.sleep(200);
+        Thread.sleep(250);
         if (matches != null) {
           callbackContext.success(matches);
         } else if (errorMessage != null) {
