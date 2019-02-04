@@ -129,6 +129,14 @@ window.plugins.speechRecognition.requestPermission(
 This method requests access permission to system resources if it was not granted before.
 
 
+### unmute()
+
+```js
+window.plugins.speechRecognition.unmute()
+```
+
+This method unmutes the media stream.
+
 ### Ionic Usage
 
 ```typescript

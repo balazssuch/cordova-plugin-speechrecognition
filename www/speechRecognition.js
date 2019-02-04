@@ -17,5 +17,8 @@ module.exports = {
   },
   requestPermission: function(successCallback, errorCallback) {
     cordova.exec(successCallback, errorCallback, 'SpeechRecognition', 'requestPermission', []);
+  },
+  unmute: function() {
+    cordova.exec(null, null, 'SpeechRecognition', 'unmute', []);
   }
 };

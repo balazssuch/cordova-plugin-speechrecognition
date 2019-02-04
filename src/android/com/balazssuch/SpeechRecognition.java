@@ -38,6 +38,7 @@ public class SpeechRecognition extends CordovaPlugin {
   private static final String GET_SUPPORTED_LANGUAGES = "getSupportedLanguages";
   private static final String HAS_PERMISSION = "hasPermission";
   private static final String REQUEST_PERMISSION = "requestPermission";
+  private static final String UNMUTE = "unmute";
   private static final int MAX_RESULTS = 5;
   private static final String NOT_AVAILABLE = "Speech recognition service is not available on the system.";
   private static final String MISSING_PERMISSION = "Missing permission";
@@ -81,6 +82,12 @@ public class SpeechRecognition extends CordovaPlugin {
     Log.d(LOG_TAG, "execute() action " + action);
 
     try {
+      if (UNMUTE.equals(action)) {
+        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+        audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0);
+        return true;
+      }
+
       if (IS_RECOGNITION_AVAILABLE.equals(action)) {
         boolean available = isRecognitionAvailable();
         PluginResult result = new PluginResult(PluginResult.Status.OK, available);
