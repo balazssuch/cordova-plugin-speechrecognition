@@ -10,7 +10,7 @@ This is a cordova plugin for Speech Recognition.
 ## Installation
 
 ```
-cordova plugin add cordova-plugin-speechrecognition
+cordova plugin add https://github.com/balazssuch/cordova-plugin-speechrecognition.git
 ```
 
 ## Supported Platforms
@@ -40,7 +40,8 @@ let options = {
   Number matches,
   String prompt,      // Android only
   Boolean showPopup,  // Android only
-  Boolean showPartial 
+  Boolean showPartial,
+  Boolean muteBeeps //Android only
 }
 
 window.plugins.speechRecognition.startListening(
@@ -54,6 +55,7 @@ This method has an options parameter with the following optional values:
 - `prompt` {String} displayed prompt of listener popup window (default `""`, Android only)
 - `showPopup` {Boolean} display listener popup window with prompt (default `true`, Android only)
 - `showPartial` {Boolean} Allow partial results to be returned (default `false`)
+- `muteBeeps` {Boolean} Mute beeping sound of recognition started, ended and results (default `false`)
 
 Result of success callback is an `Array` of recognized terms.
 
