@@ -1,6 +1,6 @@
 // https://developer.android.com/reference/android/speech/SpeechRecognizer.html
 
-package com.pbakondy;
+package com.balazssuch;
 
 import android.Manifest;
 import android.app.Activity;

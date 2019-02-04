@@ -1,6 +1,6 @@
 // http://stackoverflow.com/a/10548680
 
-package com.pbakondy;
+package com.balazssuch;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
