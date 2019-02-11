@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -59,6 +60,21 @@ public class SpeechRecognition extends CordovaPlugin {
   private Boolean showPopup;
   private Boolean muteBeeps;
 
+  private CountDownTimer noSpeechCountDown = new CountDownTimer(5000, 5000) {
+
+    @Override
+    public void onTick(long millisUntilFinished) {
+    }
+
+    @Override
+    public void onFinish() {
+      isCountDownOn = false;
+      startListening();
+    }
+  };
+
+  private boolean isCountDownOn = false;
+
   @Override
   public void initialize(CordovaInterface cordova, CordovaWebView webView) {
     super.initialize(cordova, webView);
@@ -67,8 +83,6 @@ public class SpeechRecognition extends CordovaPlugin {
     context = webView.getContext();
     audioManager = (AudioManager)webView.getContext().getSystemService(Context.AUDIO_SERVICE);
     view = webView.getView();
-
-    createSpeechRecognizer();
   }
 
   @Override
@@ -177,6 +191,10 @@ public class SpeechRecognition extends CordovaPlugin {
   }
 
   private void createSpeechRecognizer() {
+    if (recognizer != null) {
+      recognizer.stopListening();
+      recognizer.destroy();
+    }
     recognizer = SpeechRecognizer.createSpeechRecognizer(activity);
     SpeechRecognitionListener listener = new SpeechRecognitionListener();
     recognizer.setRecognitionListener(listener);
@@ -185,9 +203,6 @@ public class SpeechRecognition extends CordovaPlugin {
   private void startListening() {
     Log.d(LOG_TAG, "startListening() language: " + language + ", matches: " + matches + ", prompt: " + prompt + ", showPartial: " + showPartial + ", showPopup: " + showPopup);
 
-    if (recognizer == null) {
-      createSpeechRecognizer();
-    }
     if (muteBeeps) {
       audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
       audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0);
@@ -209,7 +224,10 @@ public class SpeechRecognition extends CordovaPlugin {
     if (showPopup) {
       cordova.startActivityForResult(this, intent, REQUEST_CODE_SPEECH);
     } else {
-      view.post(() -> recognizer.startListening(intent));
+      view.post(() -> {
+        createSpeechRecognizer();
+        recognizer.startListening(intent);
+      });
     }
   }
 
@@ -289,6 +307,11 @@ public class SpeechRecognition extends CordovaPlugin {
 
     @Override
     public void onBeginningOfSpeech() {
+      if (isCountDownOn)
+      {
+        isCountDownOn = false;
+        noSpeechCountDown.cancel();
+      }
     }
 
     @Override
@@ -303,6 +326,10 @@ public class SpeechRecognition extends CordovaPlugin {
     public void onError(int errorCode) {
       String errorMessage = getErrorText(errorCode);
       Log.d(LOG_TAG, "Error: " + errorMessage);
+      if (isCountDownOn) {
+        isCountDownOn = false;
+        noSpeechCountDown.cancel();
+      }
       callbackContext.error(errorMessage);
     }
 
@@ -333,6 +360,8 @@ public class SpeechRecognition extends CordovaPlugin {
     @Override
     public void onReadyForSpeech(Bundle params) {
       Log.d(LOG_TAG, "onReadyForSpeech");
+      isCountDownOn = true;
+      noSpeechCountDown.start();
     }
 
     @Override
@@ -383,10 +412,6 @@ public class SpeechRecognition extends CordovaPlugin {
           break;
         case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
           message = "RecognitionService busy";
-          recognizer.stopListening();
-          recognizer.destroy();
-
-          startListening();
           break;
         case SpeechRecognizer.ERROR_SERVER:
           message = "error from server";
